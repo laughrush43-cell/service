@@ -45,11 +45,11 @@ SCRIPT_URL = "https://raw.githubusercontent.com/laughrush43-cell/service/main/co
 
 def debug_print(text):
     current_time = datetime.now().strftime("%H:%M:%S")
-    print(f"[{current_time}] {text}")
+    print(f"[{current_time}] {text}", flush=True)
 
 def check_internet():
     try:
-        requests.get("https://api.telegram.org", timeout=5)
+        requests.get("https://api.telegram.org", timeout=3)
         return True
     except Exception:
         return False
